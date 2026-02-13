@@ -26,8 +26,8 @@ st.set_page_config(
 st.title("🔎 Buscador Estruturado — RPI INPI (Seção V Marcas)")
 st.caption(
     "Upload do RM####.xml (revista de Marcas). "
-    "Baixe a revista no endereço https://revistas.inpi.gov.br/rpi/"
-    "Busca por Elemento Nominativo com correspondência exata e semelhante."
+    "Baixe a revista no endereço https://revistas.inpi.gov.br/rpi/ "
+    "- Busca por Elemento Nominativo com correspondência exata e semelhante."
 )
 
 # ----------------------------
