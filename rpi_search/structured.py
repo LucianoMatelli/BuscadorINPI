@@ -1,9 +1,10 @@
+# rpi_search/structured.py
 from __future__ import annotations
 
 import re
 import unicodedata
 from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from lxml import etree
 
@@ -20,7 +21,7 @@ def norm_text(s: str) -> str:
 
 
 # ----------------------------
-# Modelo de Registro
+# Modelo genérico (heurístico)
 # ----------------------------
 @dataclass
 class MarcaRecord:
@@ -30,6 +31,8 @@ class MarcaRecord:
     classe: Optional[str]
     despacho: Optional[str]
     natureza: Optional[str]
+    especificacao: Optional[str]
+    procurador: Optional[str]
     raw_text: str
 
     def to_dict(self) -> Dict:
@@ -37,47 +40,87 @@ class MarcaRecord:
 
 
 # ----------------------------
-# Heurísticas de tags comuns (variam entre layouts)
+# Aliases de campos (heurístico)
 # ----------------------------
 FIELD_TAG_ALIASES = {
     "processo": [
-        "processo", "numeroprocesso", "numero_processo", "nprocesso", "processonumero"
+        "processo",
+        "numeroprocesso",
+        "numero_processo",
+        "nprocesso",
+        "processonumero",
     ],
     "marca": [
-        "marca", "denominacao", "apresentacao", "nome", "sinal", "sinaldistintivo"
+        "marca",
+        "denominacao",
+        "denominação",
+        "apresentacao",
+        "nome",
+        "sinal",
+        "sinaldistintivo",
     ],
     "titular": [
-        "titular", "requerente", "depositante", "nome_razao_social", "razaosocial"
+        "titular",
+        "requerente",
+        "depositante",
+        "razaosocial",
+        "nome_razao_social",
     ],
     "classe": [
-        "classe", "classenice", "nice", "classificacao", "classe_nice"
+        "classe",
+        "classenice",
+        "nice",
+        "classificacao",
+        "classe_nice",
     ],
     "despacho": [
-        "despacho", "codigodespacho", "codigo_despacho", "evento", "decisao"
+        "despacho",
+        "codigodespacho",
+        "codigo_despacho",
+        "evento",
+        "decisao",
     ],
     "natureza": [
-        "natureza", "tipo", "modalidade", "apresentacao_marca"
+        "natureza",
+        "tipo",
+        "modalidade",
+    ],
+    "especificacao": [
+        "especificacao",
+        "especificação",
+        "produtos_servicos",
+        "servicos_produtos",
+        "lista_produtos",
+    ],
+    "procurador": [
+        "procurador",
+        "representante",
+        "agente",
+        "mandatario",
+        "mandatário",
     ],
 }
 
-# tags que tipicamente “encapsulam” um registro/processo
 RECORD_CONTAINER_HINTS = [
-    "processo", "pedido", "registro", "marca", "despacho", "requerimento"
+    "processo",
+    "pedido",
+    "registro",
+    "marca",
+    "despacho",
+    "requerimento",
 ]
 
 
 def _tag_localname(el: etree._Element) -> str:
-    # remove namespace
     if el.tag is None:
         return ""
     return etree.QName(el).localname.lower()
 
 
 def _find_first_text_by_aliases(container: etree._Element, aliases: List[str]) -> Optional[str]:
-    # busca por tags cujo localname contenha algum alias
     for el in container.iter():
         name = _tag_localname(el)
-        if any(a in name for a in aliases):
+        if any(alias in name for alias in aliases):
             txt = (el.text or "").strip()
             if txt:
                 return txt
@@ -85,7 +128,6 @@ def _find_first_text_by_aliases(container: etree._Element, aliases: List[str]) -
 
 
 def _container_score(el: etree._Element) -> int:
-    # pontua containers que “parecem” registro: contém várias tags relevantes
     score = 0
     names = [_tag_localname(x) for x in el.iter()]
     joined = " ".join(names)
@@ -97,21 +139,20 @@ def _container_score(el: etree._Element) -> int:
 
 def extract_records(xml_bytes: bytes, max_records: int = 200000) -> List[MarcaRecord]:
     """
-    Extrai registros da RPI (Seção V / Marcas) de forma heurística.
+    Parser heurístico genérico para XML de marcas.
+    Mantido por compatibilidade.
+    Para RM####.xml específico, usar structured_rm.py.
     """
     parser = etree.XMLParser(recover=True, huge_tree=True)
     root = etree.fromstring(xml_bytes, parser=parser)
 
-    # Estratégia:
-    # 1) procura nós com "processo"/"pedido"/"registro" no nome da tag
-    # 2) escolhe os que têm bom score e tamanho razoável
     candidates: List[etree._Element] = []
+
     for el in root.iter():
         lname = _tag_localname(el)
         if any(h in lname for h in ["processo", "pedido", "registro", "requerimento"]):
             candidates.append(el)
 
-    # fallback: se não achar, tenta nós com score alto
     if not candidates:
         for el in root.iter():
             if _container_score(el) >= 3:
@@ -130,17 +171,22 @@ def extract_records(xml_bytes: bytes, max_records: int = 200000) -> List[MarcaRe
         classe = _find_first_text_by_aliases(el, FIELD_TAG_ALIASES["classe"])
         despacho = _find_first_text_by_aliases(el, FIELD_TAG_ALIASES["despacho"])
         natureza = _find_first_text_by_aliases(el, FIELD_TAG_ALIASES["natureza"])
+        especificacao = _find_first_text_by_aliases(el, FIELD_TAG_ALIASES["especificacao"])
+        procurador = _find_first_text_by_aliases(el, FIELD_TAG_ALIASES["procurador"])
 
-        # se não tiver nada “minimamente útil”, ignora
         if not any([processo, marca, titular, classe, despacho]):
             continue
 
-        # raw_text para contexto/lastro (curto e limpo)
         raw_text = " ".join(t.strip() for t in el.itertext() if t and t.strip())
         raw_text = re.sub(r"\s+", " ", raw_text).strip()
 
-        # deduplicação por assinatura
-        sig = (norm_text(processo or ""), norm_text(marca or ""), norm_text(titular or ""), norm_text(classe or ""), norm_text(despacho or ""))
+        sig = (
+            norm_text(processo or ""),
+            norm_text(marca or ""),
+            norm_text(titular or ""),
+            norm_text(classe or ""),
+            norm_text(despacho or ""),
+        )
         if sig in seen:
             continue
         seen.add(sig)
@@ -153,7 +199,9 @@ def extract_records(xml_bytes: bytes, max_records: int = 200000) -> List[MarcaRe
                 classe=classe,
                 despacho=despacho,
                 natureza=natureza,
-                raw_text=raw_text[:2000],  # limita contexto para UI
+                especificacao=especificacao,
+                procurador=procurador,
+                raw_text=raw_text[:2000],
             )
         )
 
