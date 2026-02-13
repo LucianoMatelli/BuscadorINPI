@@ -7,7 +7,7 @@ from typing import List
 
 import streamlit as st
 
-# Garante que o diretório do app está no PYTHONPATH (Streamlit Cloud pode variar o cwd)
+# Garante que o diretório do app está no PYTHONPATH
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from rpi_search.parser import read_xml_bytes
@@ -30,17 +30,21 @@ st.caption(
 )
 
 # ----------------------------
-# Estilo (cards estilo PDF)
+# Estilo
 # ----------------------------
-st.markdown(
-    """
+st.markdown("""
 <style>
 .card{
   border:1px solid rgba(49,51,63,.2);
   border-radius:14px;
-  padding:14px 16px;
-  margin:10px 0;
+  padding:18px 20px;
+  margin:12px 0;
   background:rgba(250,250,255,.35)
+}
+.title{
+  font-size:20px;
+  font-weight:800;
+  margin-bottom:6px;
 }
 .badge{
   display:inline-block;
@@ -65,9 +69,7 @@ st.markdown(
   Consolas,"Liberation Mono","Courier New",monospace
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # ----------------------------
 # Inputs
@@ -99,7 +101,7 @@ with col2:
 run = st.button("🚀 Pesquisar", type="primary", use_container_width=True)
 
 # ----------------------------
-# Cache do parsing
+# Cache
 # ----------------------------
 @st.cache_data(show_spinner=False)
 def _parse_records(file_bytes: bytes, filename: str) -> List[RMRecord]:
@@ -122,8 +124,6 @@ if run:
     with st.spinner("Lendo e estruturando a revista..."):
         records = _parse_records(uploaded.getvalue(), uploaded.name)
 
-    st.info(f"Registros estruturados extraídos: {len(records)}")
-
     with st.spinner("Executando matching..."):
         matches: List[Match] = match_records(
             records=records,
@@ -138,9 +138,6 @@ if run:
 
     st.success(f"✅ Resultados encontrados: {len(matches)} (exibindo até 100)")
 
-    # ----------------------------
-    # Renderização em cards
-    # ----------------------------
     for i, m in enumerate(matches[:100], start=1):
         r = m.record
 
@@ -153,13 +150,14 @@ if run:
 
         esp_prev = especificacao_preview(r.especificacao)
 
-        st.markdown(
-            f"""
+        st.markdown(f"""
         <div class="card">
+          <div class="title">{r.elemento_nominativo or "-"}</div>
+
           <div>
             <span class="badge {badge_class}">{badge_txt}</span>
             <span class="small mono">
-              #{i} | RPI {r.revista_numero} ({r.revista_data})
+              RPI {r.revista_numero} ({r.revista_data})
             </span>
           </div>
 
@@ -168,7 +166,6 @@ if run:
             <div><span class="label">Data de depósito:</span> {r.data_deposito or "-"}</div>
             <div><span class="label">Apresentação:</span> {r.apresentacao or "-"}</div>
             <div><span class="label">Natureza:</span> {r.natureza or "-"}</div>
-            <div><span class="label">Elemento nominativo:</span> {r.elemento_nominativo or "-"}</div>
             <div><span class="label">NCL:</span> {r.ncl or "-"}</div>
             <div><span class="label">Despacho:</span> {r.despacho_nome or "-"} {f"({r.despacho_codigo})" if r.despacho_codigo else ""}</div>
             <div><span class="label">Status:</span> {r.status or "-"}</div>
@@ -179,9 +176,7 @@ if run:
             <div><span class="label">Especificação:</span> {esp_prev or "-"}</div>
           </div>
         </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        """, unsafe_allow_html=True)
 
         if (r.especificacao or "").strip():
             with st.expander("Ver especificação completa"):
