@@ -1,8 +1,14 @@
 # app.py
 from __future__ import annotations
 
-import streamlit as st
+import os
+import sys
 from typing import List
+
+import streamlit as st
+
+# Garante que o diretório do app está no PYTHONPATH (Streamlit Cloud pode variar o cwd)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from rpi_search.parser import read_xml_bytes
 from rpi_search.structured_rm import iter_rm_records, especificacao_preview, RMRecord
@@ -26,7 +32,8 @@ st.caption(
 # ----------------------------
 # Estilo (cards estilo PDF)
 # ----------------------------
-st.markdown("""
+st.markdown(
+    """
 <style>
 .card{
   border:1px solid rgba(49,51,63,.2);
@@ -58,8 +65,9 @@ st.markdown("""
   Consolas,"Liberation Mono","Courier New",monospace
 }
 </style>
-""", unsafe_allow_html=True)
-
+""",
+    unsafe_allow_html=True,
+)
 
 # ----------------------------
 # Inputs
@@ -89,7 +97,6 @@ with col2:
     )
 
 run = st.button("🚀 Pesquisar", type="primary", use_container_width=True)
-
 
 # ----------------------------
 # Cache do parsing
@@ -146,7 +153,8 @@ if run:
 
         esp_prev = especificacao_preview(r.especificacao)
 
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div class="card">
           <div>
             <span class="badge {badge_class}">{badge_txt}</span>
@@ -171,7 +179,9 @@ if run:
             <div><span class="label">Especificação:</span> {esp_prev or "-"}</div>
           </div>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         if (r.especificacao or "").strip():
             with st.expander("Ver especificação completa"):
